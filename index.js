@@ -1,6 +1,5 @@
-import core from "@actions/core";
-import {context, getOctokit} from "@actions/github";
-
+const core = require("@actions/core");
+const {context, getOctokit} = require("@actions/github");
 const fs = require('fs');
 const path = require('path');
 const semverClean = require('semver/functions/clean');
