@@ -27,7 +27,7 @@ async function run() {
         }
 
         const pkg = require(pkgFile);
-        core.debug(`Detected version ${pkg.version}`);
+        core.debug(`Detected package version ${pkg.version}`);
         return clean(pkg.version);
     }
 
@@ -39,8 +39,13 @@ async function run() {
         try {
             const github = getOctokit(process.env.GITHUB_TOKEN);
             const {owner, repo} = context.repo;
+            core.debug(`Github context: owner -> ${owner}; repo -> ${repo}`);
+
             const response = await github.rest.repos.getLatestRelease({owner, repo});
+            core.debug(`Latest release response: ${JSON.stringify(response.data)}`);
+
             let tag = response.data.tag_name;
+            core.debug(`Latest release tag: ${tag}`);
 
             const tagPrefix = core.getInput('tag_prefix', {required: false});
             if (tagPrefix && tag.startsWith(tagPrefix))
