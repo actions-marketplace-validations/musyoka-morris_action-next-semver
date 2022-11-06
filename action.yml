@@ -1,0 +1,21 @@
+name: "Auto Generate Next Release Semantic Version"
+description: "Automatically generate next release semantic version incrementally based on previous release tag and package.json file version."
+author: "musyoka-morris"
+
+branding:
+  icon: "tag"
+  color: "red"
+
+inputs:
+  package_root:
+    description: NextSemver will look for the package.json file in in this location.
+    required: false
+    default: './'
+
+outputs:
+  version:
+    description: 'The next semantic version generated'
+
+runs:
+  using: "node16"
+  main: "index.js"
