@@ -1,5 +1,5 @@
 name: "Auto Generate Next Release Semantic Version"
-description: "Automatically generate next release semantic version incrementally based on previous release tag and package.json file version."
+description: "Automatically generate next release semantic version incrementally."
 author: "musyoka-morris"
 
 branding:
