@@ -1,6 +1,6 @@
 {
   "name": "action-next-semver",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Github Action to generate next Release Semantic Version",
   "author": "musyoka-morris",
   "license": "MIT",

@@ -1,4 +1,4 @@
-const core = require("@actions/core");
+const {debug, warning, setFailed, getInput, setOutput} = require("@actions/core");
 const {context, getOctokit} = require("@actions/github");
 const fs = require('fs');
 const path = require('path');
@@ -9,51 +9,50 @@ const semverGte = require('semver/functions/gte');
 async function run() {
     const DEFAULT_VERSION = "0.0.0";
 
-    class NextSemverError extends Error {
-    }
-
-    function clean(version) {
-        const cleanVersion = semverClean(version);
-        if (!cleanVersion)
-            throw new NextSemverError(`Invalid semver string: ${version}`);
-        return cleanVersion;
-    }
-
-
     try {
-        core.debug(
+        debug(
             ` Available environment variables:\n -> ${Object.keys(process.env)
                 .map(key => key + ' :: ' + process.env[key])
                 .join('\n -> ')}`
         );
 
-        const pkgRoot = core.getInput('package_root', {required: false});
-        const pkgFile = path.join(process.env.GITHUB_WORKSPACE, pkgRoot, 'package.json');
-        if (!fs.existsSync(pkgFile))
-            throw new NextSemverError('package.json does not exist.');
+        const pkgFileRoot = getInput('package_root', {required: false});
+        const pkgFilePath = path.join(process.env.GITHUB_WORKSPACE, pkgFileRoot, 'package.json');
+        debug(`package.json file path: ${pkgFilePath}`);
 
-        const pkg = require(pkgFile);
-        core.debug(`Detected package version ${pkg.version}`);
-        const pkgVersion = clean(pkg.version);
+        if (!fs.existsSync(pkgFilePath)) {
+            setFailed('package.json does not exist.');
+            return;
+        }
+
+        const pkg = require(pkgFilePath);
+        debug(`Detected package version ${pkg.version}`);
+        const pkgVersion = semverClean(pkg.version);
+        if (!pkgVersion) {
+            setFailed(`Invalid version string in package.json: ${pkg.version}`);
+            return;
+        }
 
 
-        if (!process.env.hasOwnProperty('GITHUB_TOKEN'))
-            throw new NextSemverError('Invalid or missing GITHUB_TOKEN.');
+        if (!process.env.hasOwnProperty('GITHUB_TOKEN')) {
+            setFailed('Invalid or missing GITHUB_TOKEN.');
+            return;
+        }
 
 
-        const tagPrefix = core.getInput('tag_prefix', {required: false});
-        const tagSuffix = core.getInput('tag_suffix', {required: false});
+        const tagPrefix = getInput('tag_prefix', {required: false});
+        const tagSuffix = getInput('tag_suffix', {required: false});
         let latestVersion = DEFAULT_VERSION;
         try {
             const github = getOctokit(process.env.GITHUB_TOKEN);
             const {owner, repo} = context.repo;
-            core.debug(`Github context: owner -> ${owner}; repo -> ${repo}`);
+            debug(`Github context: owner -> ${owner}; repo -> ${repo}`);
 
             const response = await github.rest.repos.getLatestRelease({owner, repo});
-            core.debug(`Latest release response: ${JSON.stringify(response.data)}`);
+            debug(`Latest release response: ${JSON.stringify(response.data)}`);
 
             let tag = response.data.tag_name;
-            core.debug(`Latest release tag: ${tag}`);
+            debug(`Latest release tag: ${tag}`);
 
             if (tagPrefix && tag.startsWith(tagPrefix))
                 tag = tag.replace(tagPrefix, '');
@@ -61,30 +60,39 @@ async function run() {
             if (tagSuffix && tag.endsWith(tagSuffix))
                 tag = tag.replace(tagSuffix, '');
 
-            latestVersion = clean(tag);
-        } catch (error) {
+            latestVersion = semverClean(tag);
+            if (!latestVersion) {
+                setFailed(`Invalid version string in latest release: ${tag}`);
+                return;
+            }
+        } catch (e) {
             // No releases yet
-            if (error.response.status !== 404)
-                throw error;
+            if (e.response.status !== 404) {
+                warning(e.message);
+                setFailed(e.message);
+                return;
+            }
         }
 
         const nextVersion =
             semverGte(latestVersion, pkgVersion) ?
                 semverInc(latestVersion, 'patch') : pkgVersion;
 
-        core.debug(`
+        debug(`
             Package version: ${pkgVersion} \n
             Previous release version: ${latestVersion} \n
             Next release version: ${nextVersion}
         `);
 
         pkg.version = nextVersion;
-        fs.writeFileSync(pkgFile, JSON.stringify(pkg));
+        fs.writeFileSync(pkgFilePath, JSON.stringify(pkg));
+        debug(JSON.stringify(require(pkgFilePath)));
 
-        core.setOutput('tag', `${tagPrefix}${nextVersion}${tagSuffix}`);
+        setOutput('package_file', pkgFilePath);
+        setOutput('tag', `${tagPrefix}${nextVersion}${tagSuffix}`);
     } catch (e) {
-        core.warning(e.message);
-        core.setFailed(e instanceof NextSemverError ? e.message : 'Unable to generate next version');
+        warning(e.message);
+        setFailed('Unable to generate next version');
     }
 }
 
